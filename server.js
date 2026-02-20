@@ -2,10 +2,7 @@ const express = require('express');
 const app = express();
 const http = require('http').createServer(app);
 const io = require('socket.io')(http, {
-    cors: {
-        origin: "*", // Allows connections from Neocities/Newgrounds
-        methods: ["GET", "POST"]
-    }
+    cors: { origin: "*", methods: ["GET", "POST"] }
 });
 
 let players = {};
@@ -13,63 +10,53 @@ let players = {};
 io.on('connection', (socket) => {
     console.log('User connected:', socket.id);
 
-    // Initial state for new connection
     players[socket.id] = {
-        id: socket.id,
-        x: 0,
-        y: 0,
-        direction: 'front',
-        state: 'idle',
-        name: 'Anonymous' // Default name
+        id: socket.id, x: 0, y: 0, direction: 'front', state: 'idle', name: 'CHARA', isTalking: false
     };
 
-    // Send the current list of players to the new person
     socket.emit('currentPlayers', players);
-    
-    // Tell everyone else a new person joined
     socket.broadcast.emit('newPlayer', players[socket.id]);
 
-    // --- HANDLE JOIN (NAME SETTING) ---
     socket.on('joinGame', (name) => {
         if (players[socket.id]) {
-            // Clean the name to prevent HTML injection or super long names
-            let cleanName = name.substring(0, 15).replace(/</g, "&lt;").replace(/>/g, "&gt;");
-            players[socket.id].name = cleanName || "Player";
-            
-            // Tell everyone to update this player's name tag
+            let cleanName = name.substring(0, 6).replace(/</g, "&lt;").replace(/>/g, "&gt;").toUpperCase();
+            players[socket.id].name = cleanName || "CHARA";
             io.emit('updatePlayerName', { id: socket.id, name: players[socket.id].name });
         }
     });
 
-    // --- HANDLE MOVEMENT ---
     socket.on('playerMovement', (movementData) => {
         if (players[socket.id]) {
             players[socket.id].x = movementData.x;
             players[socket.id].y = movementData.y;
             players[socket.id].direction = movementData.direction;
             players[socket.id].state = movementData.state;
-            
             socket.broadcast.emit('playerMoved', players[socket.id]);
         }
     });
 
-    // --- HANDLE CHAT ---
     socket.on('sendMsg', (msg) => {
         if (players[socket.id]) {
-            // Clean the message
-            let cleanMsg = msg.substring(0, 50).replace(/</g, "&lt;").replace(/>/g, "&gt;");
+            let cleanMsg = msg.substring(0, 40).replace(/</g, "&lt;").replace(/>/g, "&gt;");
             if (cleanMsg.trim().length > 0) {
-                // Send message to EVERYONE (including the sender)
-                io.emit('receiveMsg', {
-                    id: socket.id,
-                    name: players[socket.id].name,
-                    text: cleanMsg
-                });
+                io.emit('receiveMsg', { id: socket.id, name: players[socket.id].name, text: cleanMsg });
             }
         }
     });
 
-    // --- DISCONNECT ---
+    // --- NEW: VOICE CHAT EVENTS ---
+    socket.on('talkingState', (isTalking) => {
+        if (players[socket.id]) {
+            players[socket.id].isTalking = isTalking;
+            socket.broadcast.emit('playerTalking', { id: socket.id, isTalking: isTalking });
+        }
+    });
+
+    socket.on('voiceData', (audioBlob) => {
+        // Send the audio blob to everyone else
+        socket.broadcast.emit('playVoice', { id: socket.id, audio: audioBlob });
+    });
+
     socket.on('disconnect', () => {
         console.log('User disconnected:', socket.id);
         delete players[socket.id];
