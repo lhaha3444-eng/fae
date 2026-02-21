@@ -19,8 +19,7 @@ io.on('connection', (socket) => {
         y: 0,
         direction: 'front',
         state: 'idle',
-        name: 'CHARA',
-        isTalking: false
+        name: 'CHARA'
     };
 
     socket.emit('currentPlayers', players);
@@ -40,6 +39,7 @@ io.on('connection', (socket) => {
             players[socket.id].y = movementData.y;
             players[socket.id].direction = movementData.direction;
             players[socket.id].state = movementData.state;
+            
             socket.broadcast.emit('playerMoved', players[socket.id]);
         }
     });
@@ -48,29 +48,13 @@ io.on('connection', (socket) => {
         if (players[socket.id]) {
             let cleanMsg = msg.substring(0, 40).replace(/</g, "&lt;").replace(/>/g, "&gt;");
             if (cleanMsg.trim().length > 0) {
-                io.emit('receiveMsg', { id: socket.id, name: players[socket.id].name, text: cleanMsg });
+                io.emit('receiveMsg', {
+                    id: socket.id,
+                    name: players[socket.id].name,
+                    text: cleanMsg
+                });
             }
         }
-    });
-
-    // --- VOICE CHAT EVENTS ---
-    socket.on('startTalking', () => {
-        if(players[socket.id]) {
-            players[socket.id].isTalking = true;
-            io.emit('playerTalkingStatus', { id: socket.id, isTalking: true });
-        }
-    });
-
-    socket.on('stopTalking', () => {
-        if(players[socket.id]) {
-            players[socket.id].isTalking = false;
-            io.emit('playerTalkingStatus', { id: socket.id, isTalking: false });
-        }
-    });
-
-    socket.on('audioStream', (audioData) => {
-        // Broadcast the raw audio data to everyone EXCEPT the sender
-        socket.broadcast.emit('audioStream', { id: socket.id, audio: audioData });
     });
 
     socket.on('disconnect', () => {
