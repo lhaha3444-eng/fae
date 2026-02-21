@@ -2,7 +2,10 @@ const express = require('express');
 const app = express();
 const http = require('http').createServer(app);
 const io = require('socket.io')(http, {
-    cors: { origin: "*", methods: ["GET", "POST"] }
+    cors: {
+        origin: "*", 
+        methods: ["GET", "POST"]
+    }
 });
 
 let players = {};
@@ -11,7 +14,13 @@ io.on('connection', (socket) => {
     console.log('User connected:', socket.id);
 
     players[socket.id] = {
-        id: socket.id, x: 0, y: 0, direction: 'front', state: 'idle', name: 'CHARA', isTalking: false
+        id: socket.id,
+        x: 0,
+        y: 0,
+        direction: 'front',
+        state: 'idle',
+        name: 'CHARA',
+        isTalking: false
     };
 
     socket.emit('currentPlayers', players);
@@ -44,17 +53,24 @@ io.on('connection', (socket) => {
         }
     });
 
-    // --- NEW: VOICE CHAT EVENTS ---
-    socket.on('talkingState', (isTalking) => {
-        if (players[socket.id]) {
-            players[socket.id].isTalking = isTalking;
-            socket.broadcast.emit('playerTalking', { id: socket.id, isTalking: isTalking });
+    // --- VOICE CHAT EVENTS ---
+    socket.on('startTalking', () => {
+        if(players[socket.id]) {
+            players[socket.id].isTalking = true;
+            io.emit('playerTalkingStatus', { id: socket.id, isTalking: true });
         }
     });
 
-    socket.on('voiceData', (audioBlob) => {
-        // Send the audio blob to everyone else
-        socket.broadcast.emit('playVoice', { id: socket.id, audio: audioBlob });
+    socket.on('stopTalking', () => {
+        if(players[socket.id]) {
+            players[socket.id].isTalking = false;
+            io.emit('playerTalkingStatus', { id: socket.id, isTalking: false });
+        }
+    });
+
+    socket.on('audioStream', (audioData) => {
+        // Broadcast the raw audio data to everyone EXCEPT the sender
+        socket.broadcast.emit('audioStream', { id: socket.id, audio: audioData });
     });
 
     socket.on('disconnect', () => {
