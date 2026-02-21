@@ -19,7 +19,8 @@ io.on('connection', (socket) => {
         y: 0,
         direction: 'front',
         state: 'idle',
-        name: 'CHARA'
+        name: 'CHARA',
+        isTalking: false // NEW: Track if they are holding X
     };
 
     socket.emit('currentPlayers', players);
@@ -48,14 +49,27 @@ io.on('connection', (socket) => {
         if (players[socket.id]) {
             let cleanMsg = msg.substring(0, 40).replace(/</g, "&lt;").replace(/>/g, "&gt;");
             if (cleanMsg.trim().length > 0) {
-                io.emit('receiveMsg', {
-                    id: socket.id,
-                    name: players[socket.id].name,
-                    text: cleanMsg
-                });
+                io.emit('receiveMsg', { id: socket.id, name: players[socket.id].name, text: cleanMsg });
             }
         }
     });
+
+    // --- NEW: VOICE CHAT EVENTS ---
+    
+    // 1. Tell others to show/hide the mic icon
+    socket.on('talkingState', (isTalking) => {
+        if (players[socket.id]) {
+            players[socket.id].isTalking = isTalking;
+            socket.broadcast.emit('playerTalking', { id: socket.id, isTalking: isTalking });
+        }
+    });
+
+    // 2. Pass the audio data chunks to everyone else
+    socket.on('voice', (audioData) => {
+        socket.broadcast.emit('voice', { id: socket.id, audio: audioData });
+    });
+
+    // ------------------------------
 
     socket.on('disconnect', () => {
         console.log('User disconnected:', socket.id);
